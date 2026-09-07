@@ -166,7 +166,7 @@ jobs:
             exit 0
           fi
 
-          echo "[INFO] Generating index.html for all repository directories..."
+          echo "[INFO] Generating index.html for all repository directories with directory sizes..."
           python3 - << 'EOF'
           import os, json
 
@@ -177,6 +177,18 @@ jobs:
           repo_root = "."
           exclude_dirs = {".git", ".github"}
 
+          def get_dir_size(dir_path):
+              total_size = 0
+              try:
+                  for root_dir, _, file_names in os.walk(dir_path):
+                      for fn in file_names:
+                          fp = os.path.join(root_dir, fn)
+                          if os.path.isfile(fp):
+                              total_size += os.path.getsize(fp)
+              except Exception:
+                  pass
+              return total_size
+
           for root, dirs, files in os.walk(repo_root):
               dirs[:] = [d for d in dirs if d not in exclude_dirs]
               
@@ -186,7 +198,9 @@ jobs:
                   items.append({"name": "..", "path": "../", "type": "dir", "size": 0})
 
               for d in sorted(dirs):
-                  items.append({"name": d, "path": f"./{d}/", "type": "dir", "size": 0})
+                  dir_full_path = os.path.join(root, d)
+                  dir_size = get_dir_size(dir_full_path)
+                  items.append({"name": d, "path": f"./{d}/", "type": "dir", "size": dir_size})
               
               for file in sorted(files):
                   if file == "index.html" and root == repo_root and os.path.exists(os.path.join(root, "index.html")):
@@ -203,7 +217,6 @@ jobs:
               )
 
               target_index = os.path.join(root, "index.html")
-              # Do not overwrite if a custom landing index.html already exists in root unless it is the generated one
               if not (root == repo_root and os.path.exists(target_index) and "__TREE_DATA__" not in open(target_index, encoding="utf-8", errors="ignore").read()):
                   with open(target_index, "w", encoding="utf-8") as f:
                       f.write(index_content)

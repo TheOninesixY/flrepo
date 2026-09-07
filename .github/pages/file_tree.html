@@ -20,6 +20,7 @@
       box-sizing: border-box;
       margin: 0;
       padding: 0;
+      border-radius: 0 !important;
     }
 
     body {
@@ -63,7 +64,7 @@
     }
 
     .path-header {
-      font-size: 1.1rem;
+      font-size: 1.05rem;
       font-weight: 600;
       color: var(--text-muted);
       margin-bottom: 24px;
@@ -71,7 +72,94 @@
       border-bottom: 1px solid var(--border-color);
       display: flex;
       align-items: center;
-      gap: 8px;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 48px;
+    }
+
+    .path-display-area {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      overflow-x: auto;
+      white-space: nowrap;
+      cursor: text;
+      user-select: none;
+      padding: 4px 6px;
+    }
+
+    .path-segment {
+      color: #0969da;
+      text-decoration: none;
+      font-weight: 500;
+      padding: 2px 4px;
+    }
+
+    .path-segment:hover {
+      text-decoration: underline;
+      background-color: #eaf2ff;
+    }
+
+    .path-separator {
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .header-input {
+      flex: 1;
+      height: 32px;
+      padding: 0 10px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      outline: none;
+      background-color: #ffffff;
+      box-shadow: none;
+    }
+
+    .header-input:focus {
+      border-color: #8c959f;
+      outline: none;
+      box-shadow: none;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .action-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border: 1px solid transparent;
+      background: transparent;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.15s ease;
+    }
+
+    .action-btn:hover {
+      background-color: var(--hover-bg);
+      color: var(--text-main);
+      border-color: var(--border-color);
+    }
+
+    .action-btn.active-style {
+      background-color: var(--hover-bg);
+      color: var(--text-main);
+      border-color: var(--border-color);
+    }
+
+    .action-btn svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
     }
 
     .tree-container {
@@ -83,7 +171,6 @@
       align-items: center;
       justify-content: space-between;
       padding: 10px 14px;
-      border-radius: 4px;
       font-size: 0.95rem;
       text-decoration: none;
       color: var(--text-main);
@@ -120,6 +207,12 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .empty-notice {
+      padding: 16px 14px;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
     @media (max-width: 768px) {
       body {
         flex-direction: column;
@@ -143,9 +236,27 @@
   </aside>
 
   <main class="main-content">
-    <div class="path-header">
-      <span>Index of</span>
-      <span id="current-path">/</span>
+    <div class="path-header" id="path-header">
+      <div class="path-display-area" id="path-display" title="Double click to enter path">
+        <span>Index of</span>
+        <span id="breadcrumb-container"></span>
+      </div>
+
+      <input type="text" class="header-input" id="search-input" placeholder="Search Files..." style="display: none;">
+      <input type="text" class="header-input" id="path-input" placeholder="Enter path e.g. /objects/..." style="display: none;">
+
+      <div class="header-actions">
+        <button class="action-btn" id="search-btn" title="Search Files">
+          <svg viewBox="0 0 16 16">
+            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+          </svg>
+        </button>
+        <button class="action-btn active-style" id="close-input-btn" title="Close" style="display: none;">
+          <svg viewBox="0 0 16 16">
+            <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <ul class="tree-container" id="file-list">
@@ -155,40 +266,162 @@
 
   <script>
     const TREE_DATA = window.__TREE_DATA__ || [];
+    const REPO_BASE = "/flrepo/";
 
     function formatSize(bytes) {
       if (bytes === 0) return "0 B";
-      if (!bytes) return "-";
-      const units = ["B", "KB", "MB", "GB"];
+      if (!bytes || isNaN(bytes)) return "-";
+      const units = ["B", "KB", "MB", "GB", "TB"];
       const i = Math.floor(Math.log(bytes) / Math.log(1024));
       return (bytes / Math.pow(1024, i)).toFixed(1) + " " + units[i];
     }
 
-    function renderTree() {
-      const container = document.getElementById("file-list");
-      const pathEl = document.getElementById("current-path");
-      pathEl.textContent = window.location.pathname;
+    function getRelativeVirtualPath() {
+      let rawPath = window.location.pathname;
+      if (!rawPath.endsWith("/")) {
+        rawPath += "/";
+      }
+      if (rawPath.startsWith(REPO_BASE)) {
+        return "/" + rawPath.slice(REPO_BASE.length);
+      }
+      return rawPath;
+    }
 
-      if (!TREE_DATA.length) {
-        container.innerHTML = '<li class="tree-item"><span class="item-meta">Empty directory.</span></li>';
+    function renderBreadcrumbs() {
+      const container = document.getElementById("breadcrumb-container");
+      container.innerHTML = "";
+
+      const vPath = getRelativeVirtualPath();
+      const segments = vPath.split("/").filter(Boolean);
+
+      const rootLink = document.createElement("a");
+      rootLink.className = "path-segment";
+      rootLink.href = REPO_BASE;
+      rootLink.textContent = "/";
+      container.appendChild(rootLink);
+
+      let accumulated = REPO_BASE;
+      segments.forEach((seg, idx) => {
+        const sep = document.createElement("span");
+        sep.className = "path-separator";
+        sep.textContent = " / ";
+        container.appendChild(sep);
+
+        accumulated += seg + "/";
+        const link = document.createElement("a");
+        link.className = "path-segment";
+        link.href = accumulated;
+        link.textContent = seg;
+        container.appendChild(link);
+      });
+    }
+
+    function renderItems(filterKeyword = "") {
+      const container = document.getElementById("file-list");
+      const keyword = filterKeyword.trim().toLowerCase();
+
+      const items = TREE_DATA.filter(item => {
+        if (item.name === "..") return !keyword;
+        return !keyword || item.name.toLowerCase().includes(keyword);
+      });
+
+      if (!items.length) {
+        container.innerHTML = `<li class="empty-notice">${keyword ? "No matching files found." : "Empty directory."}</li>`;
         return;
       }
 
-      container.innerHTML = TREE_DATA.map(item => `
+      container.innerHTML = items.map(item => `
         <li>
           <a class="tree-item" href="${item.path}">
             <div class="item-left">
               <span class="item-name ${item.type === 'dir' ? 'directory' : ''}">${item.name}${item.type === 'dir' ? '/' : ''}</span>
             </div>
             <div class="item-meta">
-              ${item.type === 'dir' ? '-' : formatSize(item.size)}
+              ${item.name === '..' ? '-' : formatSize(item.size)}
             </div>
           </a>
         </li>
       `).join("");
     }
 
-    document.addEventListener("DOMContentLoaded", renderTree);
+    function initControls() {
+      const displayArea = document.getElementById("path-display");
+      const searchInput = document.getElementById("search-input");
+      const pathInput = document.getElementById("path-input");
+      const searchBtn = document.getElementById("search-btn");
+      const closeBtn = document.getElementById("close-input-btn");
+
+      function showMode(mode) {
+        displayArea.style.display = mode === "display" ? "flex" : "none";
+        searchInput.style.display = mode === "search" ? "block" : "none";
+        pathInput.style.display = mode === "path" ? "block" : "none";
+        searchBtn.style.display = mode === "display" ? "inline-flex" : "none";
+        closeBtn.style.display = mode === "display" ? "none" : "inline-flex";
+
+        if (mode === "search") {
+          searchInput.focus();
+        } else if (mode === "path") {
+          pathInput.value = getRelativeVirtualPath();
+          pathInput.focus();
+          pathInput.select();
+        } else {
+          searchInput.value = "";
+          renderItems();
+        }
+      }
+
+      searchBtn.addEventListener("click", () => showMode("search"));
+      closeBtn.addEventListener("click", () => showMode("display"));
+
+      displayArea.addEventListener("dblclick", (e) => {
+        if (e.target.tagName.toLowerCase() === "a") return;
+        showMode("path");
+      });
+
+      searchInput.addEventListener("input", (e) => {
+        renderItems(e.target.value);
+      });
+
+      searchInput.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") showMode("display");
+      });
+
+      pathInput.addEventListener("keydown", async (e) => {
+        if (e.key === "Escape") {
+          showMode("display");
+        } else if (e.key === "Enter") {
+          let inputVal = pathInput.value.trim();
+          if (!inputVal) return;
+
+          let targetPath = inputVal.startsWith("/") ? inputVal.slice(1) : inputVal;
+          if (targetPath.startsWith("flrepo/")) {
+            targetPath = targetPath.slice("flrepo/".length);
+          }
+          let resolvedUrl = REPO_BASE + targetPath;
+          if (!resolvedUrl.endsWith("/")) {
+            resolvedUrl += "/";
+          }
+
+          try {
+            const checkUrl = resolvedUrl.endsWith("/") ? resolvedUrl + "index.html" : resolvedUrl;
+            const res = await fetch(checkUrl, { method: "HEAD" });
+            if (res.ok) {
+              window.location.href = resolvedUrl;
+            } else {
+              window.location.href = REPO_BASE;
+            }
+          } catch (err) {
+            window.location.href = REPO_BASE;
+          }
+        }
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      renderBreadcrumbs();
+      renderItems();
+      initControls();
+    });
   </script>
 </body>
 </html>
