@@ -130,6 +130,60 @@ jobs:
 
           echo "[INFO] OSTree repository and flatpak bundles generated successfully."
 
+      - name: Generate Directory Tree Index Pages
+        run: |
+          set -euo pipefail
+
+          TEMPLATE_PATH=".github/pages/file_tree.html"
+          if [ ! -f "${TEMPLATE_PATH}" ]; then
+            echo "[WARN] Template ${TEMPLATE_PATH} not found. Skipping file tree index generation."
+            exit 0
+          fi
+
+          echo "[INFO] Generating index.html for all repository directories..."
+          python3 - << 'EOF'
+          import os, json
+
+          template_path = ".github/pages/file_tree.html"
+          with open(template_path, "r", encoding="utf-8") as f:
+              template_html = f.read()
+
+          repo_root = "."
+          exclude_dirs = {".git", ".github"}
+
+          for root, dirs, files in os.walk(repo_root):
+              dirs[:] = [d for d in dirs if d not in exclude_dirs]
+              
+              items = []
+              # Add parent link if not in root
+              if os.path.relpath(root, repo_root) != ".":
+                  items.append({"name": "..", "path": "../", "type": "dir", "size": 0})
+
+              for d in sorted(dirs):
+                  items.append({"name": d, "path": f"./{d}/", "type": "dir", "size": 0})
+              
+              for file in sorted(files):
+                  if file == "index.html" and root == repo_root and os.path.exists(os.path.join(root, "index.html")):
+                      continue
+                  if file.startswith("."):
+                      continue
+                  file_path = os.path.join(root, file)
+                  size = os.path.getsize(file_path) if os.path.isfile(file_path) else 0
+                  items.append({"name": file, "path": f"./{file}", "type": "file", "size": size})
+
+              index_content = template_html.replace(
+                  "window.__TREE_DATA__ || []",
+                  json.dumps(items, ensure_ascii=False)
+              )
+
+              target_index = os.path.join(root, "index.html")
+              # Do not overwrite if a custom landing index.html already exists in root unless it is the generated one
+              if not (root == repo_root and os.path.exists(target_index) and "__TREE_DATA__" not in open(target_index, encoding="utf-8", errors="ignore").read()):
+                  with open(target_index, "w", encoding="utf-8") as f:
+                      f.write(index_content)
+          EOF
+          echo "[INFO] File tree index pages generated."
+
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:

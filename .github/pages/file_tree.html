@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flrepo - File Tree</title>
+  <style>
+    :root {
+      --sidebar-bg: #11527e;
+      --sidebar-text: #ffffff;
+      --content-bg: #ffffff;
+      --text-main: #1f2328;
+      --text-muted: #656d76;
+      --border-color: #d0d7de;
+      --hover-bg: #f3f4f6;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      display: flex;
+      min-height: 100vh;
+      font-family: var(--font-family);
+      background-color: var(--content-bg);
+      color: var(--text-main);
+    }
+
+    .sidebar {
+      width: 280px;
+      min-width: 280px;
+      background-color: var(--sidebar-bg);
+      color: var(--sidebar-text);
+      padding: 48px 32px;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    .sidebar-title {
+      font-size: 3rem;
+      font-weight: 400;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+    }
+
+    .sidebar-subtitle {
+      font-size: 0.95rem;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      margin-top: 8px;
+      opacity: 0.9;
+    }
+
+    .main-content {
+      flex: 1;
+      padding: 48px 48px;
+      overflow-y: auto;
+    }
+
+    .path-header {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tree-container {
+      list-style: none;
+    }
+
+    .tree-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-radius: 4px;
+      font-size: 0.95rem;
+      text-decoration: none;
+      color: var(--text-main);
+      transition: background-color 0.15s ease;
+      border-bottom: 1px solid #f6f8fa;
+    }
+
+    .tree-item:hover {
+      background-color: var(--hover-bg);
+    }
+
+    .item-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .item-name {
+      color: #0969da;
+      font-weight: 500;
+    }
+
+    .item-name.directory {
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .item-meta {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        flex-direction: column;
+      }
+      .sidebar {
+        width: 100%;
+        min-width: 100%;
+        padding: 32px 24px;
+      }
+      .main-content {
+        padding: 24px 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <aside class="sidebar">
+    <h1 class="sidebar-title">Flrepo</h1>
+    <div class="sidebar-subtitle">FILE TREE</div>
+  </aside>
+
+  <main class="main-content">
+    <div class="path-header">
+      <span>Index of</span>
+      <span id="current-path">/</span>
+    </div>
+
+    <ul class="tree-container" id="file-list">
+      <!-- Generated items -->
+    </ul>
+  </main>
+
+  <script>
+    const TREE_DATA = window.__TREE_DATA__ || [];
+
+    function formatSize(bytes) {
+      if (bytes === 0) return "0 B";
+      if (!bytes) return "-";
+      const units = ["B", "KB", "MB", "GB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(1024));
+      return (bytes / Math.pow(1024, i)).toFixed(1) + " " + units[i];
+    }
+
+    function renderTree() {
+      const container = document.getElementById("file-list");
+      const pathEl = document.getElementById("current-path");
+      pathEl.textContent = window.location.pathname;
+
+      if (!TREE_DATA.length) {
+        container.innerHTML = '<li class="tree-item"><span class="item-meta">Empty directory.</span></li>';
+        return;
+      }
+
+      container.innerHTML = TREE_DATA.map(item => `
+        <li>
+          <a class="tree-item" href="${item.path}">
+            <div class="item-left">
+              <span class="item-name ${item.type === 'dir' ? 'directory' : ''}">${item.name}${item.type === 'dir' ? '/' : ''}</span>
+            </div>
+            <div class="item-meta">
+              ${item.type === 'dir' ? '-' : formatSize(item.size)}
+            </div>
+          </a>
+        </li>
+      `).join("");
+    }
+
+    document.addEventListener("DOMContentLoaded", renderTree);
+  </script>
+</body>
+</html>
