@@ -1,19 +1,19 @@
 [Flatpak Ref]
-Name=io.github.theoninesixy.Termin
+Name=io.github.theoninesixy.FlatHMCL
 
 Branch=master
 
-Title=Termin
+Title=FlatHMCL
 
-Comment=Termin Terminal
+Comment=Hello Minecraft! Launcher
 
-Description=告别多余干扰，专注当下的 Linux 终端模拟器。
+Description=HMCL 是一款开源、跨平台的 Minecraft 启动器，支持模组管理、游戏自定义、游戏自动安装 (Forge、NeoForge、Cleanroom、Fabric、Legacy Fabric、Quilt、LiteLoader 和 OptiFine)、整合包创建、界面自定义等功能。
 
 Url=https://onsy.qzz.io/flrepo/
 
 IsRuntime=false
 
-Icon=https://raw.githubusercontent.com/TheOninesixY/Termin/refs/heads/main/icon.svg
+Icon=https://raw.githubusercontent.com/TheOninesixY/FlatHMCL/refs/heads/main/io.github.theoninesixy.FlatHMCL.png
 
 SuggestRemoteName=flrepo
 

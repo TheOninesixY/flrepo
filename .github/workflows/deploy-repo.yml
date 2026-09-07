@@ -47,7 +47,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          CONFIG_FILE=".github/workflows/get.yml"
+          CONFIG_FILE=".github/env/get.yml"
           REPO_DIR="."
           BUILD_DIR="build-dir"
 
@@ -64,7 +64,7 @@ jobs:
           python3 - << 'EOF' > /tmp/flatpak_targets.tsv
           import re
 
-          with open(".github/workflows/get.yml", "r", encoding="utf-8") as f:
+          with open(".github/env/get.yml", "r", encoding="utf-8") as f:
               for line in f:
                   line = line.strip()
                   if not line or line.startswith("#"):
@@ -80,18 +80,45 @@ jobs:
             [ -z "${APP_NAME}" ] && continue
             echo "[INFO] Processing ${APP_NAME} from ${MANIFEST_URL}..."
 
+            APP_TMP_DIR="tmp/${APP_NAME}"
+            mkdir -p "${APP_TMP_DIR}"
+
             MANIFEST_EXT="${MANIFEST_URL##*.}"
-            TEMP_MANIFEST="manifest_${APP_NAME}.${MANIFEST_EXT}"
+            TEMP_MANIFEST="${APP_TMP_DIR}/manifest.${MANIFEST_EXT}"
             curl -fsSL "${MANIFEST_URL}" -o "${TEMP_MANIFEST}"
 
-            APP_ID=$(python3 -c "
-          import re, sys
-          with open(sys.argv[1], 'r', encoding='utf-8') as f:
+            APP_ID=$(python3 - << EOF
+          import os, re, sys, urllib.parse, urllib.request
+
+          manifest_path = "${TEMP_MANIFEST}"
+          manifest_url = "${MANIFEST_URL}"
+          target_dir = "${APP_TMP_DIR}"
+
+          with open(manifest_path, "r", encoding="utf-8") as f:
               content = f.read()
-          match = re.search(r'^\s*(?:id|app-id)\s*:\s*[\"\'\']?([^\"\'\'\s]+)[\"\'\']?', content, re.MULTILINE)
-          if match:
-              print(match.group(1))
-          " "${TEMP_MANIFEST}")
+
+          id_match = re.search(r'^\s*[\"\'\']?(?:id|app-id)[\"\'\']?\s*:\s*[\"\'\']?([^\"\'\'\s,#]+)[\"\'\']?', content, re.MULTILINE)
+          if not id_match:
+              sys.exit(1)
+
+          app_id = id_match.group(1)
+
+          paths = re.findall(r'[\"\'\']?path[\"\'\']?\s*:\s*[\"\'\']?([^\"\'\'\s,#]+)[\"\'\']?', content)
+          base_url = manifest_url.rsplit("/", 1)[0] + "/"
+
+          for p in paths:
+              if p.startswith("http://") or p.startswith("https://") or p.startswith("/"):
+                  continue
+              file_url = urllib.parse.urljoin(base_url, p)
+              dest_path = os.path.join(target_dir, p)
+              os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+              req = urllib.request.Request(file_url, headers={"User-Agent": "Mozilla/5.0"})
+              with urllib.request.urlopen(req) as resp, open(dest_path, "wb") as out_f:
+                  out_f.write(resp.read())
+
+          print(app_id)
+          EOF
+          )
 
             if [ -z "${APP_ID}" ]; then
               echo "[ERROR] Could not extract app ID for ${APP_NAME}."
@@ -116,11 +143,10 @@ jobs:
               "${APP_NAME}.flatpak" \
               "${APP_ID}"
 
-            rm -rf "${TEMP_MANIFEST}" "${BUILD_DIR}"
+            rm -rf "${APP_TMP_DIR}" "${BUILD_DIR}"
           done < /tmp/flatpak_targets.tsv
 
-          rm -f /tmp/flatpak_targets.tsv
-          rm -rf .flatpak-builder 2>/dev/null || true
+          rm -rf tmp /tmp/flatpak_targets.tsv .flatpak-builder 2>/dev/null || true
 
           echo "[INFO] Updating repository summary and static deltas..."
           flatpak build-update-repo \
