@@ -1,0 +1,148 @@
+name: Build Flatpak Repo and Deploy Pages
+
+on:
+  schedule:
+    - cron: '0 12 * * *'
+  push:
+    branches:
+      - page
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: bilelmoussaoui/flatpak-github-actions:gnome-46
+      options: --privileged
+
+    steps:
+      - name: Checkout Documentation (page branch)
+        uses: actions/checkout@v4
+        with:
+          ref: page
+
+      - name: Import GPG Key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          echo "[INFO] Importing GPG private key..."
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+
+      - name: Setup Flathub Repository
+        run: |
+          echo "[INFO] Adding Flathub remote repository..."
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+      - name: Build Flatpak Packages and Repository
+        env:
+          GPG_KEY_ID: "C40563883002D85414F6517269B202E6183A72A2"
+        run: |
+          set -euo pipefail
+
+          CONFIG_FILE="get.yml"
+          REPO_DIR="."
+          BUILD_DIR="build-dir"
+
+          if [ ! -f "${CONFIG_FILE}" ]; then
+            echo "[ERROR] ${CONFIG_FILE} not found."
+            exit 1
+          fi
+
+          if [ ! -d "${REPO_DIR}/objects" ]; then
+            echo "[INFO] Initializing OSTree repository..."
+            ostree init --mode=archive-z2 --repo="${REPO_DIR}"
+          fi
+
+          python3 - << 'EOF' > /tmp/flatpak_targets.tsv
+          import re
+
+          with open("get.yml", "r", encoding="utf-8") as f:
+              for line in f:
+                  line = line.strip()
+                  if not line or line.startswith("#"):
+                      continue
+                  match = re.match(r"^([^:：]+)[:：]\s*(https?://\S+)", line)
+                  if match:
+                      app_name = match.group(1).strip()
+                      manifest_url = match.group(2).strip()
+                      print(f"{app_name}\t{manifest_url}")
+          EOF
+
+          while IFS=$'\t' read -r APP_NAME MANIFEST_URL || [ -n "${APP_NAME}" ]; do
+            [ -z "${APP_NAME}" ] && continue
+            echo "[INFO] Processing ${APP_NAME} from ${MANIFEST_URL}..."
+
+            MANIFEST_EXT="${MANIFEST_URL##*.}"
+            TEMP_MANIFEST="manifest_${APP_NAME}.${MANIFEST_EXT}"
+            curl -fsSL "${MANIFEST_URL}" -o "${TEMP_MANIFEST}"
+
+            APP_ID=$(python3 -c "
+          import re, sys
+          with open(sys.argv[1], 'r', encoding='utf-8') as f:
+              content = f.read()
+          match = re.search(r'^\s*(?:id|app-id)\s*:\s*[\"'\']?([^\"'\s]+)[\"'\']?', content, re.MULTILINE)
+          if match:
+              print(match.group(1))
+          " "${TEMP_MANIFEST}")
+
+            if [ -z "${APP_ID}" ]; then
+              echo "[ERROR] Could not extract app ID for ${APP_NAME}."
+              exit 1
+            fi
+
+            echo "[INFO] Building ${APP_ID}..."
+            flatpak-builder \
+              --user \
+              --install-deps-from=flathub \
+              --disable-rofiles-fuse \
+              --gpg-sign="${GPG_KEY_ID}" \
+              --repo="${REPO_DIR}" \
+              --force-clean \
+              "${BUILD_DIR}" \
+              "${TEMP_MANIFEST}"
+
+            echo "[INFO] Creating single-file bundle: ${APP_NAME}.flatpak..."
+            flatpak build-bundle \
+              --gpg-sign="${GPG_KEY_ID}" \
+              "${REPO_DIR}" \
+              "${APP_NAME}.flatpak" \
+              "${APP_ID}"
+
+            rm -rf "${TEMP_MANIFEST}" "${BUILD_DIR}"
+          done < /tmp/flatpak_targets.tsv
+
+          rm -f /tmp/flatpak_targets.tsv
+          rm -rf .flatpak-builder 2>/dev/null || true
+
+          echo "[INFO] Updating repository summary and static deltas..."
+          flatpak build-update-repo \
+            --gpg-sign="${GPG_KEY_ID}" \
+            --generate-static-deltas \
+            "${REPO_DIR}"
+
+          echo "[INFO] OSTree repository and flatpak bundles generated successfully."
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
