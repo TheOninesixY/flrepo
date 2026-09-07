@@ -7,6 +7,9 @@ on:
     branches:
       - main
       - master
+    paths-ignore:
+      - '.github/workflows/file_tree.yml'
+      - '.github/pages/file_tree.html'
   workflow_dispatch:
 
 permissions:
@@ -50,6 +53,7 @@ jobs:
           CONFIG_FILE=".github/env/get.yml"
           REPO_DIR="."
           BUILD_DIR="build-dir"
+          PUBLIC_KEY_FILE="${REPO_DIR}/PublicKey.txt"
 
           if [ ! -f "${CONFIG_FILE}" ]; then
             echo "[ERROR] ${CONFIG_FILE} not found."
@@ -59,6 +63,11 @@ jobs:
           if [ ! -d "${REPO_DIR}/objects" ]; then
             echo "[INFO] Initializing OSTree repository..."
             ostree init --mode=archive-z2 --repo="${REPO_DIR}"
+          fi
+
+          GPG_PUBLIC_KEY=""
+          if [ -f "${PUBLIC_KEY_FILE}" ]; then
+            GPG_PUBLIC_KEY=$(tr -d '\r\n' < "${PUBLIC_KEY_FILE}")
           fi
 
           python3 - << 'EOF' > /tmp/flatpak_targets.tsv
@@ -143,6 +152,18 @@ jobs:
               "${APP_NAME}.flatpak" \
               "${APP_ID}"
 
+            echo "[INFO] Generating ${APP_NAME}.flatpakref..."
+            cat << EOF > "${REPO_DIR}/${APP_NAME}.flatpakref"
+[Flatpak Ref]
+Name=${APP_ID}
+Title=${APP_NAME}
+Url=https://onsy.qzz.io/flrepo/
+Homepage=https://onsy.qzz.io/flrepo/${APP_NAME}.flatpakref
+Branch=master
+IsRuntime=false
+GPGKey=${GPG_PUBLIC_KEY}
+EOF
+
             rm -rf "${APP_TMP_DIR}" "${BUILD_DIR}"
           done < /tmp/flatpak_targets.tsv
 
@@ -154,7 +175,7 @@ jobs:
             --generate-static-deltas \
             "${REPO_DIR}"
 
-          echo "[INFO] OSTree repository and flatpak bundles generated successfully."
+          echo "[INFO] OSTree repository, flatpak bundles, and flatpakref files generated successfully."
 
       - name: Generate Directory Tree and Global Search Index
         run: |
