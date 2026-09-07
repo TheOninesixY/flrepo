@@ -153,16 +153,8 @@ jobs:
               "${APP_ID}"
 
             echo "[INFO] Generating ${APP_NAME}.flatpakref..."
-            cat << EOF > "${REPO_DIR}/${APP_NAME}.flatpakref"
-[Flatpak Ref]
-Name=${APP_ID}
-Title=${APP_NAME}
-Url=https://onsy.qzz.io/flrepo/
-Homepage=https://onsy.qzz.io/flrepo/${APP_NAME}.flatpakref
-Branch=master
-IsRuntime=false
-GPGKey=${GPG_PUBLIC_KEY}
-EOF
+            printf "[Flatpak Ref]\nName=%s\nTitle=%s\nUrl=https://onsy.qzz.io/flrepo/\nHomepage=https://onsy.qzz.io/flrepo/%s.flatpakref\nBranch=master\nIsRuntime=false\nGPGKey=%s\n" \
+              "${APP_ID}" "${APP_NAME}" "${APP_NAME}" "${GPG_PUBLIC_KEY}" > "${REPO_DIR}/${APP_NAME}.flatpakref"
 
             rm -rf "${APP_TMP_DIR}" "${BUILD_DIR}"
           done < /tmp/flatpak_targets.tsv
