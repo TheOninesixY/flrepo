@@ -47,7 +47,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          CONFIG_FILE="get.yml"
+          CONFIG_FILE=".github/workflows/get.yml"
           REPO_DIR="."
           BUILD_DIR="build-dir"
 
