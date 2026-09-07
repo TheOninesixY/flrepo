@@ -1,21 +1,16 @@
-name: Build Flatpak Repo and Deploy Pages
+name: Build Flatpak Repo
 
 on:
   schedule:
     - cron: '0 12 * * *'
   push:
     branches:
-      - page
+      - main
+      - master
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
 
 jobs:
   build:
@@ -25,10 +20,8 @@ jobs:
       options: --privileged
 
     steps:
-      - name: Checkout Documentation (page branch)
+      - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
-          ref: page
 
       - name: Import GPG Key
         env:
@@ -89,7 +82,7 @@ jobs:
           import re, sys
           with open(sys.argv[1], 'r', encoding='utf-8') as f:
               content = f.read()
-          match = re.search(r'^\s*(?:id|app-id)\s*:\s*[\"'\']?([^\"'\s]+)[\"'\']?', content, re.MULTILINE)
+          match = re.search(r'^\s*(?:id|app-id)\s*:\s*[\"\'\']?([^\"\'\'\s]+)[\"\'\']?', content, re.MULTILINE)
           if match:
               print(match.group(1))
           " "${TEMP_MANIFEST}")
@@ -130,19 +123,3 @@ jobs:
             "${REPO_DIR}"
 
           echo "[INFO] OSTree repository and flatpak bundles generated successfully."
-
-      - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
