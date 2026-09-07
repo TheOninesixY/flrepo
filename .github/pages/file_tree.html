@@ -80,13 +80,13 @@
     .path-display-area {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
       flex: 1;
       overflow-x: auto;
       white-space: nowrap;
       cursor: text;
       user-select: none;
-      padding: 4px 6px;
+      padding: 4px 0;
     }
 
     .path-segment {
@@ -104,6 +104,7 @@
     .path-separator {
       color: var(--text-muted);
       font-weight: 400;
+      padding: 0 2px;
     }
 
     .header-input {
@@ -201,6 +202,12 @@
       font-weight: 600;
     }
 
+    .item-parent-dir {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-left: 6px;
+    }
+
     .item-meta {
       font-size: 0.85rem;
       color: var(--text-muted);
@@ -242,11 +249,11 @@
         <span id="breadcrumb-container"></span>
       </div>
 
-      <input type="text" class="header-input" id="search-input" placeholder="Search Files..." style="display: none;">
-      <input type="text" class="header-input" id="path-input" placeholder="Enter path e.g. /objects/..." style="display: none;">
+      <input type="text" class="header-input" id="search-input" placeholder="Search entire repository..." style="display: none;">
+      <input type="text" class="header-input" id="path-input" placeholder="Enter path e.g. root/objects/..." style="display: none;">
 
       <div class="header-actions">
-        <button class="action-btn" id="search-btn" title="Search Files">
+        <button class="action-btn" id="search-btn" title="Search all files">
           <svg viewBox="0 0 16 16">
             <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
           </svg>
@@ -260,13 +267,14 @@
     </div>
 
     <ul class="tree-container" id="file-list">
-      <!-- Generated items -->
+      <!-- Items dynamically rendered -->
     </ul>
   </main>
 
   <script>
     const TREE_DATA = window.__TREE_DATA__ || [];
     const REPO_BASE = "/flrepo/";
+    let ALL_REPO_FILES = null;
 
     function formatSize(bytes) {
       if (bytes === 0) return "0 B";
@@ -276,35 +284,32 @@
       return (bytes / Math.pow(1024, i)).toFixed(1) + " " + units[i];
     }
 
-    function getRelativeVirtualPath() {
+    function getRelativeSegments() {
       let rawPath = window.location.pathname;
       if (!rawPath.endsWith("/")) {
         rawPath += "/";
       }
-      if (rawPath.startsWith(REPO_BASE)) {
-        return "/" + rawPath.slice(REPO_BASE.length);
-      }
-      return rawPath;
+      let subPath = rawPath.startsWith(REPO_BASE) ? rawPath.slice(REPO_BASE.length) : rawPath;
+      return subPath.split("/").filter(Boolean);
     }
 
     function renderBreadcrumbs() {
       const container = document.getElementById("breadcrumb-container");
       container.innerHTML = "";
 
-      const vPath = getRelativeVirtualPath();
-      const segments = vPath.split("/").filter(Boolean);
+      const segments = getRelativeSegments();
 
       const rootLink = document.createElement("a");
       rootLink.className = "path-segment";
       rootLink.href = REPO_BASE;
-      rootLink.textContent = "/";
+      rootLink.textContent = "root";
       container.appendChild(rootLink);
 
       let accumulated = REPO_BASE;
-      segments.forEach((seg, idx) => {
+      segments.forEach((seg) => {
         const sep = document.createElement("span");
         sep.className = "path-separator";
-        sep.textContent = " / ";
+        sep.textContent = "/";
         container.appendChild(sep);
 
         accumulated += seg + "/";
@@ -316,21 +321,14 @@
       });
     }
 
-    function renderItems(filterKeyword = "") {
+    function renderLocalItems() {
       const container = document.getElementById("file-list");
-      const keyword = filterKeyword.trim().toLowerCase();
-
-      const items = TREE_DATA.filter(item => {
-        if (item.name === "..") return !keyword;
-        return !keyword || item.name.toLowerCase().includes(keyword);
-      });
-
-      if (!items.length) {
-        container.innerHTML = `<li class="empty-notice">${keyword ? "No matching files found." : "Empty directory."}</li>`;
+      if (!TREE_DATA.length) {
+        container.innerHTML = '<li class="empty-notice">Empty directory.</li>';
         return;
       }
 
-      container.innerHTML = items.map(item => `
+      container.innerHTML = TREE_DATA.map(item => `
         <li>
           <a class="tree-item" href="${item.path}">
             <div class="item-left">
@@ -342,6 +340,45 @@
           </a>
         </li>
       `).join("");
+    }
+
+    function renderSearchResults(results, keyword) {
+      const container = document.getElementById("file-list");
+      if (!results.length) {
+        container.innerHTML = `<li class="empty-notice">No files matching "${keyword}" found.</li>`;
+        return;
+      }
+
+      container.innerHTML = results.map(item => {
+        const targetUrl = REPO_BASE + item.path;
+        return `
+          <li>
+            <a class="tree-item" href="${targetUrl}">
+              <div class="item-left">
+                <span class="item-name ${item.type === 'dir' ? 'directory' : ''}">${item.name}${item.type === 'dir' ? '/' : ''}</span>
+                <span class="item-parent-dir">root/${item.path}</span>
+              </div>
+              <div class="item-meta">
+                ${item.type === 'dir' ? formatSize(item.size) : formatSize(item.size)}
+              </div>
+            </a>
+          </li>
+        `;
+      }).join("");
+    }
+
+    async function ensureIndexLoaded() {
+      if (ALL_REPO_FILES !== null) return;
+      try {
+        const res = await fetch(REPO_BASE + "search_index.json");
+        if (res.ok) {
+          ALL_REPO_FILES = await res.json();
+        } else {
+          ALL_REPO_FILES = [];
+        }
+      } catch (err) {
+        ALL_REPO_FILES = [];
+      }
     }
 
     function initControls() {
@@ -359,14 +396,16 @@
         closeBtn.style.display = mode === "display" ? "none" : "inline-flex";
 
         if (mode === "search") {
+          ensureIndexLoaded();
           searchInput.focus();
         } else if (mode === "path") {
-          pathInput.value = getRelativeVirtualPath();
+          const segments = getRelativeSegments();
+          pathInput.value = segments.length ? "root/" + segments.join("/") + "/" : "root/";
           pathInput.focus();
           pathInput.select();
         } else {
           searchInput.value = "";
-          renderItems();
+          renderLocalItems();
         }
       }
 
@@ -378,8 +417,18 @@
         showMode("path");
       });
 
-      searchInput.addEventListener("input", (e) => {
-        renderItems(e.target.value);
+      searchInput.addEventListener("input", async (e) => {
+        const keyword = e.target.value.trim().toLowerCase();
+        if (!keyword) {
+          renderLocalItems();
+          return;
+        }
+
+        await ensureIndexLoaded();
+        const results = (ALL_REPO_FILES || []).filter(item => {
+          return item.name.toLowerCase().includes(keyword);
+        });
+        renderSearchResults(results, keyword);
       });
 
       searchInput.addEventListener("keydown", (e) => {
@@ -393,12 +442,21 @@
           let inputVal = pathInput.value.trim();
           if (!inputVal) return;
 
-          let targetPath = inputVal.startsWith("/") ? inputVal.slice(1) : inputVal;
-          if (targetPath.startsWith("flrepo/")) {
-            targetPath = targetPath.slice("flrepo/".length);
+          if (inputVal.startsWith("root/")) {
+            inputVal = inputVal.slice("root/".length);
+          } else if (inputVal === "root" || inputVal === "/") {
+            inputVal = "";
           }
-          let resolvedUrl = REPO_BASE + targetPath;
-          if (!resolvedUrl.endsWith("/")) {
+
+          if (inputVal.startsWith("/")) {
+            inputVal = inputVal.slice(1);
+          }
+          if (inputVal.startsWith("flrepo/")) {
+            inputVal = targetPath.slice("flrepo/".length);
+          }
+
+          let resolvedUrl = REPO_BASE + inputVal;
+          if (inputVal && !resolvedUrl.endsWith("/")) {
             resolvedUrl += "/";
           }
 
@@ -419,7 +477,7 @@
 
     document.addEventListener("DOMContentLoaded", () => {
       renderBreadcrumbs();
-      renderItems();
+      renderLocalItems();
       initControls();
     });
   </script>

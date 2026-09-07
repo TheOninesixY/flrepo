@@ -7,6 +7,9 @@ on:
     branches:
       - main
       - master
+    paths-ignore:
+      - '.github/workflows/file_tree.yml'
+      - '.github/pages/file_tree.html'
   workflow_dispatch:
 
 permissions:
@@ -156,7 +159,7 @@ jobs:
 
           echo "[INFO] OSTree repository and flatpak bundles generated successfully."
 
-      - name: Generate Directory Tree Index Pages
+      - name: Generate Directory Tree and Global Search Index
         run: |
           set -euo pipefail
 
@@ -166,7 +169,7 @@ jobs:
             exit 0
           fi
 
-          echo "[INFO] Generating index.html for all repository directories with directory sizes..."
+          echo "[INFO] Generating index.html and search_index.json..."
           python3 - << 'EOF'
           import os, json
 
@@ -189,27 +192,35 @@ jobs:
                   pass
               return total_size
 
+          all_search_items = []
+
           for root, dirs, files in os.walk(repo_root):
               dirs[:] = [d for d in dirs if d not in exclude_dirs]
-              
+              rel_dir = os.path.relpath(root, repo_root)
+              if rel_dir == ".":
+                  rel_dir = ""
+
               items = []
-              # Add parent link if not in root
-              if os.path.relpath(root, repo_root) != ".":
+              if rel_dir != "":
                   items.append({"name": "..", "path": "../", "type": "dir", "size": 0})
 
               for d in sorted(dirs):
                   dir_full_path = os.path.join(root, d)
                   dir_size = get_dir_size(dir_full_path)
                   items.append({"name": d, "path": f"./{d}/", "type": "dir", "size": dir_size})
-              
+                  rel_path = (os.path.join(rel_dir, d) + "/").replace("\\", "/")
+                  all_search_items.append({"name": d, "path": rel_path, "type": "dir", "size": dir_size})
+
               for file in sorted(files):
-                  if file == "index.html" and root == repo_root and os.path.exists(os.path.join(root, "index.html")):
+                  if file.startswith(".") or file == "search_index.json":
                       continue
-                  if file.startswith("."):
+                  if file == "index.html" and rel_dir == "":
                       continue
                   file_path = os.path.join(root, file)
                   size = os.path.getsize(file_path) if os.path.isfile(file_path) else 0
                   items.append({"name": file, "path": f"./{file}", "type": "file", "size": size})
+                  rel_path = os.path.join(rel_dir, file).replace("\\", "/")
+                  all_search_items.append({"name": file, "path": rel_path, "type": "file", "size": size})
 
               index_content = template_html.replace(
                   "window.__TREE_DATA__ || []",
@@ -217,11 +228,14 @@ jobs:
               )
 
               target_index = os.path.join(root, "index.html")
-              if not (root == repo_root and os.path.exists(target_index) and "__TREE_DATA__" not in open(target_index, encoding="utf-8", errors="ignore").read()):
+              if not (rel_dir == "" and os.path.exists(target_index) and "__TREE_DATA__" not in open(target_index, encoding="utf-8", errors="ignore").read()):
                   with open(target_index, "w", encoding="utf-8") as f:
                       f.write(index_content)
+
+          with open(os.path.join(repo_root, "search_index.json"), "w", encoding="utf-8") as f:
+              json.dump(all_search_items, f, ensure_ascii=False)
           EOF
-          echo "[INFO] File tree index pages generated."
+          echo "[INFO] Index pages and search index generated."
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
