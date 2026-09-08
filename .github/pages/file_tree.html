@@ -283,8 +283,7 @@
         const expected = new URL(EXPECTED_URL);
         const currentHostname = window.location.hostname;
         if (currentHostname !== "localhost" && currentHostname !== "127.0.0.1" && currentHostname !== expected.hostname) {
-          const targetLocation = expected.origin + (expected.pathname.endsWith('/') ? expected.pathname.slice(0, -1) : expected.pathname) + window.location.pathname + window.location.search + window.location.hash;
-          window.location.replace(targetLocation);
+          window.location.replace(EXPECTED_URL);
           return false;
         }
       } catch (err) {
