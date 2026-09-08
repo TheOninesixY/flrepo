@@ -1,6 +1,6 @@
 GPG_KEY_ID: C40563883002D85414F6517269B202E6183A72A2
-GET_FILE: .github/env/get.yml
-REF_TEMPLATE: .github/env/.flatpakref
+GET_FILE: .github/config/get.yml
+REF_TEMPLATE: .github/config/.flatpakref
 REPO_DIR: .
 BUILD_DIR: build-dir
 PUBLIC_KEY_FILE: PublicKey.txt

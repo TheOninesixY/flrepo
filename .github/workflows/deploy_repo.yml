@@ -69,9 +69,9 @@ jobs:
           python3 - << 'EOF' > /tmp/workflow_vars.sh
           import re, os
 
-          config_file = ".github/env/config.yml"
+          config_file = ".github/config/config.yml"
           if not os.path.isfile(config_file):
-              print("echo '[ERROR] .github/env/config.yml not found.'; exit 1")
+              print("echo '[ERROR] .github/config/config.yml not found.'; exit 1")
               exit(1)
 
           cfg = {}
@@ -93,8 +93,8 @@ jobs:
           source /tmp/workflow_vars.sh
           rm -f /tmp/workflow_vars.sh
 
-          CONFIG_FILE="${CFG_GET_FILE:-.github/env/get.yml}"
-          REF_TEMPLATE="${CFG_REF_TEMPLATE:-.github/env/.flatpakref}"
+          CONFIG_FILE="${CFG_GET_FILE:-.github/config/get.yml}"
+          REF_TEMPLATE="${CFG_REF_TEMPLATE:-.github/config/.flatpakref}"
           REPO_DIR="${CFG_REPO_DIR:-.}"
           BUILD_DIR="${CFG_BUILD_DIR:-build-dir}"
           PUBLIC_KEY_FILE="${REPO_DIR}/${CFG_PUBLIC_KEY_FILE:-PublicKey.txt}"
@@ -134,7 +134,7 @@ jobs:
                   return m.group(1)
               return "master"
 
-          config_file = os.environ.get("CONFIG_FILE", ".github/env/get.yml")
+          config_file = os.environ.get("CONFIG_FILE", ".github/config/get.yml")
           with open(config_file, "r", encoding="utf-8") as f:
               for line in f:
                   line = line.strip()
@@ -295,7 +295,7 @@ jobs:
           python3 - << 'EOF'
           import os, json, re, urllib.parse
 
-          config_file = ".github/env/config.yml"
+          config_file = ".github/config/config.yml"
           repo_url = "https://flrepo.onsy.qzz.io/"
           if os.path.isfile(config_file):
               with open(config_file, "r", encoding="utf-8") as f:
