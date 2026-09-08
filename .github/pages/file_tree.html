@@ -272,9 +272,31 @@
   </main>
 
   <script>
+    const EXPECTED_URL = window.__REPO_URL__ || "";
+    const REPO_BASE = window.__REPO_BASE__ || "/";
     const TREE_DATA = window.__TREE_DATA__ || [];
-    const REPO_BASE = "/flrepo/";
     let ALL_REPO_FILES = null;
+
+    function verifyAccessDomain() {
+      if (!EXPECTED_URL) return true;
+      try {
+        const expected = new URL(EXPECTED_URL);
+        const currentHostname = window.location.hostname;
+        if (currentHostname !== "localhost" && currentHostname !== "127.0.0.1" && currentHostname !== expected.hostname) {
+          document.title = "404 Not Found";
+          document.body.innerHTML = `
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;width:100%;font-family:sans-serif;color:#1f2328;background-color:#ffffff;">
+              <h1 style="font-size:5rem;font-weight:600;margin-bottom:8px;letter-spacing:-0.03em;">404</h1>
+              <p style="font-size:1.15rem;color:#656d76;">Not Found</p>
+            </div>
+          `;
+          return false;
+        }
+      } catch (err) {
+        return true;
+      }
+      return true;
+    }
 
     function formatSize(bytes) {
       if (bytes === 0) return "0 B";
@@ -359,7 +381,7 @@
                 <span class="item-parent-dir">root/${item.path}</span>
               </div>
               <div class="item-meta">
-                ${item.type === 'dir' ? formatSize(item.size) : formatSize(item.size)}
+                ${formatSize(item.size)}
               </div>
             </a>
           </li>
@@ -451,9 +473,6 @@
           if (inputVal.startsWith("/")) {
             inputVal = inputVal.slice(1);
           }
-          if (inputVal.startsWith("flrepo/")) {
-            inputVal = targetPath.slice("flrepo/".length);
-          }
 
           let resolvedUrl = REPO_BASE + inputVal;
           if (inputVal && !resolvedUrl.endsWith("/")) {
@@ -476,6 +495,7 @@
     }
 
     document.addEventListener("DOMContentLoaded", () => {
+      if (!verifyAccessDomain()) return;
       renderBreadcrumbs();
       renderLocalItems();
       initControls();

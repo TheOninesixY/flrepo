@@ -1,0 +1,8 @@
+[Flatpak Ref]
+Name=${APP_ID}
+Title=${APP_NAME}
+Url=${URL}
+Homepage=${URL}/${APP_NAME}.flatpakref
+Branch=${BRANCH}
+IsRuntime=false
+GPGKey=${GPG_PUBLIC_KEY}

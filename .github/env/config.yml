@@ -1,0 +1,7 @@
+GPG_KEY_ID: C40563883002D85414F6517269B202E6183A72A2
+GET_FILE: .github/env/get.yml
+REF_TEMPLATE: .github/env/.flatpakref
+REPO_DIR: .
+BUILD_DIR: build-dir
+PUBLIC_KEY_FILE: PublicKey.txt
+URL: https://flrepo.onsy.qzz.io/

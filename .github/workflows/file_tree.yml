@@ -8,6 +8,7 @@ on:
     paths:
       - '.github/workflows/file_tree.yml'
       - '.github/pages/file_tree.html'
+      - '.github/env/config.yml'
   workflow_dispatch:
 
 permissions:
@@ -43,7 +44,22 @@ jobs:
 
           echo "[INFO] Generating index.html and search_index.json..."
           python3 - << 'EOF'
-          import os, json
+          import os, json, re, urllib.parse
+
+          config_file = ".github/env/config.yml"
+          repo_url = "https://flrepo.onsy.qzz.io/"
+          if os.path.isfile(config_file):
+              with open(config_file, "r", encoding="utf-8") as f:
+                  for line in f:
+                      m = re.match(r"^URL\s*:\s*(.+)$", line.strip())
+                      if m:
+                          repo_url = m.group(1).split("#")[0].strip().strip('"').strip("'")
+                          break
+
+          parsed_url = urllib.parse.urlparse(repo_url)
+          repo_base = parsed_url.path
+          if not repo_base.endswith("/"):
+              repo_base += "/"
 
           template_path = ".github/pages/file_tree.html"
           with open(template_path, "r", encoding="utf-8") as f:
@@ -97,6 +113,12 @@ jobs:
               index_content = template_html.replace(
                   "window.__TREE_DATA__ || []",
                   json.dumps(items, ensure_ascii=False)
+              ).replace(
+                  'window.__REPO_URL__ || ""',
+                  json.dumps(repo_url)
+              ).replace(
+                  'window.__REPO_BASE__ || "/"',
+                  json.dumps(repo_base)
               )
 
               target_index = os.path.join(root, "index.html")
