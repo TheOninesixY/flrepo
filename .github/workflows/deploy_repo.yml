@@ -7,6 +7,9 @@ on:
     branches:
       - main
       - master
+    paths-ignore:
+      - '.github/workflows/file_tree.yml'
+      - '.github/pages/file_tree.html'
   workflow_dispatch:
 
 permissions:
@@ -28,6 +31,23 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Restore Repository Cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            objects
+            refs
+            state
+            summaries
+            tmp
+            summary*
+            config
+            *.flatpak
+            *.flatpakref
+          key: flrepo-build-cache-${{ github.sha }}
+          restore-keys: |
+            flrepo-build-cache-
 
       - name: Import GPG Key
         env:
@@ -241,6 +261,22 @@ jobs:
             "${REPO_DIR}"
 
           echo "[INFO] OSTree repository, flatpak bundles, and flatpakref files generated successfully."
+
+      - name: Save Repository Cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            objects
+            refs
+            state
+            summaries
+            tmp
+            summary*
+            config
+            *.flatpak
+            *.flatpakref
+          key: flrepo-build-cache-${{ github.sha }}
 
       - name: Generate Directory Tree and Global Search Index
         run: |

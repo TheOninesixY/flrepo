@@ -27,6 +27,23 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Restore Repository Cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            objects
+            refs
+            state
+            summaries
+            tmp
+            summary*
+            config
+            *.flatpak
+            *.flatpakref
+          key: flrepo-build-cache-${{ github.sha }}
+          restore-keys: |
+            flrepo-build-cache-
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
