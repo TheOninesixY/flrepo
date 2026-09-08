@@ -10,6 +10,7 @@ on:
     paths-ignore:
       - '.github/workflows/file_tree.yml'
       - '.github/pages/file_tree.html'
+      - '.github/pages/404.html'
   workflow_dispatch:
 
 permissions:
@@ -283,12 +284,14 @@ jobs:
           set -euo pipefail
 
           TEMPLATE_PATH=".github/pages/file_tree.html"
+          TEMPLATE_404_PATH=".github/pages/404.html"
+
           if [ ! -f "${TEMPLATE_PATH}" ]; then
             echo "[WARN] Template ${TEMPLATE_PATH} not found. Skipping file tree index generation."
             exit 0
           fi
 
-          echo "[INFO] Generating index.html and search_index.json..."
+          echo "[INFO] Generating index.html, 404.html and search_index.json..."
           python3 - << 'EOF'
           import os, json, re, urllib.parse
 
@@ -346,7 +349,7 @@ jobs:
                   all_search_items.append({"name": d, "path": rel_path, "type": "dir", "size": dir_size})
 
               for file in sorted(files):
-                  if file.startswith(".") or file == "search_index.json":
+                  if file.startswith(".") or file in ("search_index.json", "404.html"):
                       continue
                   if file == "index.html" and rel_dir == "":
                       continue
@@ -374,8 +377,16 @@ jobs:
 
           with open(os.path.join(repo_root, "search_index.json"), "w", encoding="utf-8") as f:
               json.dump(all_search_items, f, ensure_ascii=False)
+
+          template_404_path = ".github/pages/404.html"
+          if os.path.isfile(template_404_path):
+              with open(template_404_path, "r", encoding="utf-8") as f:
+                  content_404 = f.read()
+              content_404 = content_404.replace('window.__REPO_URL__ || ""', json.dumps(repo_url))
+              with open(os.path.join(repo_root, "404.html"), "w", encoding="utf-8") as f:
+                  f.write(content_404)
           EOF
-          echo "[INFO] Index pages and search index generated."
+          echo "[INFO] Index pages, 404 page, and search index generated."
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
