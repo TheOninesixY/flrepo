@@ -46,7 +46,7 @@ jobs:
           set -euo pipefail
 
           python3 - << 'EOF' > /tmp/workflow_vars.sh
-          import re, os, urllib.parse
+          import re, os
 
           config_file = ".github/env/config.yml"
           if not os.path.isfile(config_file):
@@ -95,8 +95,9 @@ jobs:
             GPG_PUBLIC_KEY=$(tr -d '\r\n' < "${PUBLIC_KEY_FILE}")
           fi
 
-          python3 - << EOF > /tmp/flatpak_targets.tsv
-          import re
+          export CONFIG_FILE
+          python3 - << 'EOF' > /tmp/flatpak_targets.tsv
+          import os, re
 
           def extract_branch(url, explicit_branch=None):
               if explicit_branch:
@@ -112,7 +113,8 @@ jobs:
                   return m.group(1)
               return "master"
 
-          with open("${CONFIG_FILE}", "r", encoding="utf-8") as f:
+          config_file = os.environ.get("CONFIG_FILE", ".github/env/get.yml")
+          with open(config_file, "r", encoding="utf-8") as f:
               for line in f:
                   line = line.strip()
                   if not line or line.startswith("#"):
@@ -138,12 +140,13 @@ jobs:
             TEMP_MANIFEST="${APP_TMP_DIR}/manifest.${MANIFEST_EXT}"
             curl -fsSL "${MANIFEST_URL}" -o "${TEMP_MANIFEST}"
 
-            APP_ID=$(python3 - << EOF
+            export TEMP_MANIFEST MANIFEST_URL APP_TMP_DIR
+            APP_ID=$(python3 - << 'EOF'
           import os, re, sys, urllib.parse, urllib.request
 
-          manifest_path = "${TEMP_MANIFEST}"
-          manifest_url = "${MANIFEST_URL}"
-          target_dir = "${APP_TMP_DIR}"
+          manifest_path = os.environ["TEMP_MANIFEST"]
+          manifest_url = os.environ["MANIFEST_URL"]
+          target_dir = os.environ["APP_TMP_DIR"]
 
           with open(manifest_path, "r", encoding="utf-8") as f:
               content = f.read()
@@ -198,26 +201,27 @@ jobs:
 
             if [ -f "${REF_TEMPLATE}" ]; then
               echo "[INFO] Generating ${APP_NAME}.flatpakref from template..."
-              python3 - << EOF
-          import re
+              export REF_TEMPLATE REPO_DIR APP_ID APP_NAME BRANCH GPG_PUBLIC_KEY REPO_URL
+              python3 - << 'EOF'
+          import os, re
 
-          template_path = "${REF_TEMPLATE}"
-          output_path = "${REPO_DIR}/${APP_NAME}.flatpakref"
-          app_id = "${APP_ID}"
-          app_name = "${APP_NAME}"
-          branch = "${BRANCH}"
-          gpg_key = "${GPG_PUBLIC_KEY}"
-          repo_url = "${REPO_URL}".rstrip('/') + '/'
+          template_path = os.environ["REF_TEMPLATE"]
+          app_name = os.environ["APP_NAME"]
+          output_path = os.path.join(os.environ["REPO_DIR"], f"{app_name}.flatpakref")
+          app_id = os.environ["APP_ID"]
+          branch = os.environ["BRANCH"]
+          gpg_key = os.environ["GPG_PUBLIC_KEY"]
+          repo_url = os.environ["REPO_URL"].rstrip('/') + '/'
 
           with open(template_path, 'r', encoding='utf-8') as f:
               content = f.read()
 
-          content = content.replace("\${APP_ID}", app_id).replace("\$APP_ID", app_id)
-          content = content.replace("\${APP_NAME}", app_name).replace("\$APP_NAME", app_name)
-          content = content.replace("\${BRANCH}", branch).replace("\$BRANCH", branch)
-          content = content.replace("\${GPG_PUBLIC_KEY}", gpg_key).replace("\${GPGKey}", gpg_key).replace("\${GPG_KEY}", gpg_key)
-          content = content.replace("\${URL}/", repo_url).replace("\$URL/", repo_url)
-          content = content.replace("\${URL}", repo_url).replace("\$URL", repo_url)
+          content = content.replace("${APP_ID}", app_id).replace("$APP_ID", app_id)
+          content = content.replace("${APP_NAME}", app_name).replace("$APP_NAME", app_name)
+          content = content.replace("${BRANCH}", branch).replace("$BRANCH", branch)
+          content = content.replace("${GPG_PUBLIC_KEY}", gpg_key).replace("${GPGKey}", gpg_key).replace("${GPG_KEY}", gpg_key)
+          content = content.replace("${URL}/", repo_url).replace("$URL/", repo_url)
+          content = content.replace("${URL}", repo_url).replace("$URL", repo_url)
           content = re.sub(r'^(Branch\s*=\s*).*$', r'\g<1>' + branch, content, flags=re.MULTILINE)
 
           with open(output_path, 'w', encoding='utf-8') as f:

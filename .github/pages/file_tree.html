@@ -277,19 +277,14 @@
     const TREE_DATA = window.__TREE_DATA__ || [];
     let ALL_REPO_FILES = null;
 
-    function verifyAccessDomain() {
+    function verifyAndRedirectDomain() {
       if (!EXPECTED_URL) return true;
       try {
         const expected = new URL(EXPECTED_URL);
         const currentHostname = window.location.hostname;
         if (currentHostname !== "localhost" && currentHostname !== "127.0.0.1" && currentHostname !== expected.hostname) {
-          document.title = "404 Not Found";
-          document.body.innerHTML = `
-            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;width:100%;font-family:sans-serif;color:#1f2328;background-color:#ffffff;">
-              <h1 style="font-size:5rem;font-weight:600;margin-bottom:8px;letter-spacing:-0.03em;">404</h1>
-              <p style="font-size:1.15rem;color:#656d76;">Not Found</p>
-            </div>
-          `;
+          const targetLocation = expected.origin + (expected.pathname.endsWith('/') ? expected.pathname.slice(0, -1) : expected.pathname) + window.location.pathname + window.location.search + window.location.hash;
+          window.location.replace(targetLocation);
           return false;
         }
       } catch (err) {
@@ -495,7 +490,7 @@
     }
 
     document.addEventListener("DOMContentLoaded", () => {
-      if (!verifyAccessDomain()) return;
+      if (!verifyAndRedirectDomain()) return;
       renderBreadcrumbs();
       renderLocalItems();
       initControls();
